@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+import sys, subprocess
+
+port = sys.argv[1]
+
+while True:
+    # -q : sets the wait time for 'netcat', 0 means it will exit immediately
+    # -l : puts netcat in "listening" mode
+    subprocess.call("netcat -q 0 -l -p " + port + " < encrypt.py", shell = True)

