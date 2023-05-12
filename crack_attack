@@ -2,11 +2,6 @@
 import itertools, paramiko, sys, socket, time
 
 def dictionary_attack(hostname):
-    # initialize SSH client
-    client = paramiko.SSHClient()
-    # add to know hosts
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
     f = open('/home/csc2023/materials/victim.dat')
     lines = f.read().splitlines()
 
